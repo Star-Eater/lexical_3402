@@ -2,6 +2,13 @@
 
 
 #include <iostream>
+#include <string.h>
+
+// Global Array of Keywords (Obsolete)
+char keywords[][6] = {"begin", "call", "const", "do", "else", "end", "even", "fi", "if", "proc", "read", "then", "var", "while", "write"};
+
+
+int a;
 
 typedef enum {
     skipsym = 1, // Skip / ignore token
@@ -39,6 +46,30 @@ typedef enum {
     elsesym, // else
     evensym // even
 } TokenType;
+
+struct Lexeme {
+    const char* Lexeme;
+    TokenType Token;
+}Lexeme;
+
+// Tuple or dictionary like struct for comparing. Seperating all of the types of listed tokens and attaching their enums to them
+struct Lexeme keywordTable[] = {
+    {"begin", beginsym}, {"end", endsym}, {"if", ifsym},
+    {"fi", fisym}, {"then", thensym}, {"while", whilesym},
+    {"do", dosym}, {"call", callsym}, {"const", constsym},
+    {"var", varsym}, {"procedure", procsym}, {"write", writesym},
+    {"read", readsym}, {"else", elsesym}, {"even", evensym}
+};
+
+struct Lexeme operatorTable[] = {
+    {"+", plussym}, {"-", minussym}, {"*", multsym}, {"/", slashsym}, {"=", eqsym}, {"<>", neqsym}, {"<", lessym}, {"<=", leqsym},
+    {">", gtrsym}, {">=", geqsym}
+};
+
+struct Lexeme symbolTable[] = {
+    {"(", lparentsym}, {")", rparentsym},{",", commasym}, {";", semicolonsym}, {".", periodsym}, {":=", becomessym}
+};
+
 
 /*
 Lexical Error Reporting
@@ -128,15 +159,280 @@ lexical errors must be detected:
 
 */
 
-void parser() {
+int COMMENT_FLAG = 0; // Marks for comments and multilined comments
 
+void addToTokenList(struct Lexeme lexemearray[], int* tokenCount, TokenType type, const char* value) {
+    
+    
+    
+    lexemearray[*tokenCount].Token = type;
+    lexemearray[*tokenCount].Lexeme = value;
+    *tokenCount++;
+    return;
+}
+
+void parser(char* line, struct Lexeme *token_List){
+    char c;
+    // Reads through each character. Will need logic to address spaces, newlines, and return carraige. and to identify when it runs into a different type of token
+    
+    char token[30];
+    int walker = 0;
+
+    // Flag to identify which possibilites are left per check of a token. Will be used to identify what is possible for proper error checking
+    int Identifier_flag = 0;
+    int Keyword_flag = 0;
+    int OP_flag = 0;
+    int Punct_flag = 0;
+    int Constant_flag = 0;
+
+    // Length Limit
+    int identifier_character_count = 0; // Identifiter names should not go past 11 characters
+    int constant_check = 0; // Numbers should not go past 5 digits
+    TokenType s;
+    int i = 0, j = 0; // Will be used with the token array.
+    
+    int len = strlen(line);
+	// Scans through the line character by character
+    while (i < len) {
+
+        char character = line[i];
+        if (((line[i] >= 'a' && line[i] <= 'z') || (line[i] >= 'A' && line[i] <= 'Z')) && COMMENT_FLAG == 0) {
+            char character = line[i];
+            // Need to check if the previous was a number to seperate the tokens and flush the token array
+            if (line[i - 1] >= '0' && line[i - 1] <= '9') {
+                s = numbersym;
+                printf("%-8.8s %d\n", token, numbersym);
+                j = 0;
+                token[j] = '\0';
+                constant_check = 0;
+
+                
+            }
+
+            token[j] = character;
+            token[j + 1] = '\0';
+            i++, j++;
+            Identifier_flag = 1;
+            identifier_character_count++; // Should not go past 11 characters
+            if (token[0] != '\0' && i == len) {
+                if (identifier_character_count < 11) {
+                    s = identsym;
+                    printf("%-8.8s %d\n", token, identsym);
+                }
+                else {
+                    printf("%-8.8s identifier too long\n", token);
+                }
+            }
+        }
+
+        // Symbols Marks the end of a token and the start of a new one
+        else if ((line[i] == ',' || line[i] == ' ' || line[i] == ';' || line[i] == '\n' || (line[i] == ':' && line[i+1] == '=') || line[i] == '.') && COMMENT_FLAG == 0) {
+            
+            
+            // Start of symbol token, print the current token status and flush the token array.
+            char character = line[i];
+
+            // If the next symbol is an assignment operator
+            if (line[i] == ':' && line[i + 1] == '=') {
+                token[j] = ':';
+                token[j + 1] = '=';
+                token[j + 2] = '\0';
+                i += 2;
+                
+            }
+
+            // Check to see what symbol
+            for (int k = 0; k < 6; k++) {
+                if (strcmp(token, symbolTable[k].Lexeme) == 0) {
+                    //If successful a keyword has been hit and we break at the end and we find out which keyword has been hit.
+                    s = symbolTable[k].Token;
+                    printf("%-8.8s %d\n", symbolTable[k].Lexeme, symbolTable[k].Token);
+                    Keyword_flag = 1;
+                    Identifier_flag = 0;
+                    break;
+                }
+            }
+
+
+            for (int k = 0; k < 15; k++) {
+                if (strcmp(token, keywordTable[k].Lexeme) == 0) {
+                    //If successful a keyword has been hit and we break at the end and we find out which keyword has been hit.
+                    printf("%-8.8s %d\n", keywordTable[k].Lexeme, keywordTable[k].Token);
+                    Keyword_flag = 1;
+                    Identifier_flag = 0;
+                    break;
+                }
+            }
+
+            if (Identifier_flag == 1 && identifier_character_count < 11) {
+                s = identsym;
+                printf("%-8.8s %d\n", token, identsym);
+            }
+            else if (Identifier_flag == 1) {
+                s = skipsym;
+                printf("%-8.8s Identifier too long\n", token);
+            }
+            if (Constant_flag == 1 && constant_check < 6) {
+                s = numbersym;
+                printf("%-8.8s %d\n", token, numbersym);
+            }
+            else if (Constant_flag == 1) {
+                s = skipsym;
+                printf("%-8.8s Number too long\n", token);
+
+            }
+
+            j = 0;
+            token[j] = line[i];
+            token[j + 1] = '\0'; // Strcmp would not work properly without this at the end for comparing.
+            
+            
+            
+            // Check to see what symbol
+            for (int k = 0; k < 6; k++) {
+                if (strcmp(token, symbolTable[k].Lexeme) == 0) {
+                    //If successful a keyword has been hit and we break at the end and we find out which keyword has been hit.
+                    s = symbolTable[k].Token;
+                    printf("%-8.8s %d\n", symbolTable[k].Lexeme, symbolTable[k].Token);
+                    Punct_flag = 1;
+                    Identifier_flag = 0;
+                    break;
+                }
+            }
+
+            
+
+            // End of token. Count resets to 0 identifier and constant
+            Identifier_flag = 0;
+            Keyword_flag = 0;
+            Punct_flag = 0;
+            Constant_flag = 0;
+
+            identifier_character_count = 0;
+            constant_check = 0;
+
+            token[0] = '\0';
+            i++;
+            j = 0;
+
+            continue;
+        }
+        else if ((line[i] == '+' || line[i] == '-' || line[i] == '*' || line[i] == '/' || line[i] == '<' || line[i] == '>' || line[i] == '<=' || line[i] == '>=') || COMMENT_FLAG == 1) {
+            
+            // Operation to handle comments
+            if ((line[i] == '/' && line[i + 1] == '*' && COMMENT_FLAG == 0) || COMMENT_FLAG == 1) {
+                COMMENT_FLAG = 1;
+                if (line[i] == '*' && line[i + 1] == '/') {
+                    COMMENT_FLAG = 0; // Marks the end of the comment line
+                    i++;
+                }
+                i++;
+                continue;
+            }
+
+            // Start of operator token, print the current token status and flush the token array.
+            j = 0;
+            
+            if (Identifier_flag == 1) {
+                s = identsym;
+                printf("%-8.8s %d\n", token, identsym);
+            }
+            else if (Identifier_flag == 1 && identifier_character_count > 11) {
+                s = skipsym;
+                printf("%-8.8s Identifier too long\n", token);
+            }
+            if (Constant_flag == 1 && constant_check < 6) {
+                s = numbersym;
+                printf("%-8.8s %d\n", token, numbersym);
+            }
+            else if (Constant_flag == 1) {
+                s = skipsym;
+                printf("'%-8.8s' Number too long\n", token);
+
+            }
+
+           
+            token[j] = line[i];
+            token[j + 1] = '\0'; // Strcmp would not work if we did not add this at the end.
+
+
+            for (int k = 0; k < 10; k++) {
+                if (strcmp(token, operatorTable[k].Lexeme) == 0) {
+                    //If successful a operator has been hit and we break at the end and we find out which keyword has been hit.
+                    printf("%-8.8s %d\n", operatorTable[k].Lexeme, operatorTable[k].Token);
+                    break;
+                }
+            }
+
+            // End of token. Count resets to 0 identifier and constant
+            identifier_character_count = 0;
+            constant_check = 0;
+            token[0] = '\0';
+            i++;
+            j = 0;
+        }
+        
+        else if ((line[i] >= '0' && line[i] <= '9') && constant_check < 6) {
+             constant_check++;
+             Constant_flag = 1;
+             token[j] = line[i];
+             token[j + 1] = '\0';
+             i++, j++;
+             if (token[0] != '\0' && i == len) {
+               if (constant_check < 6) {
+                  printf("%-8.8s %d\n", token, numbersym);
+               }
+               else {
+                  printf("%-8.8s number too long\n", token);
+                    }
+             }
+        }
+        
+
+        // If its not a symbol, identifier/keyword, operator, then its a constant
+        else {
+			// Invalid Symbol Found
+            // If the token has not been cleaned before the invalid symbol print the token and flush the token array
+            if (Identifier_flag == 1 && identifier_character_count < 11) {
+                printf("%-8.8s %d\n", token, identsym);
+            }
+            else if (Identifier_flag == 1) {
+                printf("%-8.8s Identifier too long\n", token);
+			}
+            if (Constant_flag == 1 && constant_check < 6) {
+                printf("%-8.8s %d\n", token, numbersym);
+            }
+            else if (Constant_flag == 1) {
+                printf("%-8.8s Number too long\n", token);
+            }
+            j = 0;
+            token[j] = line[i];
+            token[j + 1] = '\0'; // Strcmp would not work properly without this at the end for comparing.
+            printf("%-8.8s Invalid symbol\n", token);
+            i++;
+            j = 0;
+            // End of token. Count resets to 0 identifier and constant
+            Identifier_flag = 0;
+            Keyword_flag = 0;
+            Punct_flag = 0;
+            Constant_flag = 0;
+            identifier_character_count = 0;
+            constant_check = 0;
+            token[0] = '\0';
+			continue;
+        }
+        
+		
+        
+        //addToTokenList(token_List, &walker, s, token);
+    }
 }
 
 int main(int argc, char *argv[])
 {
 
     // Opens the file
-    FILE* fp = fopen("input.txt", "r");
+    FILE* fp = fopen("input3.txt", "r");
 
     // Stops if it could not find it
     if (fp == NULL) {
@@ -145,12 +441,28 @@ int main(int argc, char *argv[])
     }
     char line[30];
 
+    printf("Source Program:\n\n");
     while (fgets(line, 30, fp) != NULL) {
         printf(line);
     }
+    rewind(fp);
+
+    printf("\n\nLexeme Table:\n\n");
     
+    
+    printf("lexeme   token type\n");
+    struct Lexeme lexemearray[500];
+    // fscanf reads through the file word by word. I can see it doing regular syntax well for our purpose. But, "a+b;begin;a,c,c,;" like this might falter
+    // fgetc reads through the file by character. We can be able to circumvent the other issue above with it. but will have to find logic to ignore spaces, newlines, and return carriage. Update i couldnt think of a logic for fgetc that would handle comments
+    // fgets reads through the file line by line but will have to seperate it by character. might be more work than its worth.
+    
+    // This is probably the dummest way we can do what i am thinking of in my head.
+    while ((fgets(line, sizeof(line), fp) != NULL)) {
+        parser(line, lexemearray);
+    }
     
 
+    
 
     return 0;
 }
